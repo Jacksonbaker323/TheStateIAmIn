@@ -1,26 +1,12 @@
 from geopandas.geodataframe import GeoDataFrame
 from shapely.geometry import Point
 import pandas
+import pdb
 
-'''
-def LoadStates():
-    #load the state shapefiles
-    states = GeoDataFrame.from_file('shapefiles/s_16de14.shp')
-    states.set_index('NAME', inplace=True)
-    return states
-
-def StateFromPoint(latitude, longitude, states):
-    #create a point
-    point = Point([longitude, latitude])
-    #create a pandas series that lists the states and if the point exists in it or nto
-    state = states.contains(point)
-    #return the name of the state that has the point in it
-    return state[state == True].first_valid_index()
-'''
 
 def LoadCSV(filename):
     #load the csv into a dataframe
-    csv = pandas.DataFrame.from_csv(filename, encoding="utf-8")
+    csv = pandas.read_csv(filename, encoding="utf-8", nrows=100)
     #add a state column
     return csv
 
@@ -34,21 +20,17 @@ def AddColumn(dataframe, column_name):
     dataframe[column_name] = pandas.Series()
     return dataframe
 
-def AddStatesToFile(dataframe, shapefile, lat_col, lon_col):
-    #load the states shapefiles
-    states = GeoDataFrame.from_file(shapefile)
-    states.set_index('NAME', inplace=True)
-
-    for index, row in dataframe.iterrows():
-        point = Point([row[lon_col], row[lat_col]])
-        state = states.contains(point)
-        state = state[state == True].first_valid_index()
-        row[-1] = state
-
-    print(dataframe)
-
+def GetStateFromPoint(row, lat, lon):
+    point = Point(row[lon], row[lat])
+    state = states.contains(point)
+    state = state[state == True].first_valid_index()
+    return state
 
 if __name__ == '__main__':
+    #Load states from shapefile so they are universally available
+    states = GeoDataFrame.from_file('shapefiles/s_16de14.shp')
+    states.set_index('NAME', inplace=True)
+
     #load the file that has the points in it we want to find states for
     filename = input("Please enter the location of the file you want to load: ")
     user_file = LoadCSV(filename)
@@ -59,5 +41,8 @@ if __name__ == '__main__':
 
     user_file = AddColumn(user_file, "State")
     print("Adding states to file...")
-    AddStatesToFile(user_file, 'shapefiles/s_16de14.shp', lat_col, lon_col)
+
+    user_file['State'] = user_file.apply(lambda row: GetStateFromPoint(row, lat_col, lon_col), axis=1)
+
+    user_file.to_csv('processed.csv')
     print("Done! Writing file to disk.")

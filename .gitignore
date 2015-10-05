@@ -2,3 +2,5 @@
 /lib
 /include
 /shapely
+processed.csv
+pip-selfcheck.json
