@@ -1,12 +1,31 @@
 from geopandas.geodataframe import GeoDataFrame
 from shapely.geometry import Point
 import pandas
-import pdb
+from clint.textui import prompt, validators
 
+
+def getFileNames():
+    filename_dict = {}
+
+    filename_dict['shapefile'] = prompt.query('Shapefile to process: ', 
+            default='shapefiles/s_16de14.shp', 
+            validators=[]
+    )
+    filename_dict['data']= prompt.query('Data to process: ',
+            default='csv/meteorites.csv',
+            validators=[]
+    )
+
+    filename_dict['output'] = prompt.query('Output file: ',
+            default='output.csv',
+            validators=[]
+    )
+
+    return filename_dict
 
 def LoadCSV(filename):
     #load the csv into a dataframe
-    csv = pandas.read_csv(filename, encoding="utf-8", nrows=100)
+    csv = pandas.read_csv(filename, encoding="utf-8")
     #add a state column
     return csv
 
@@ -20,29 +39,57 @@ def AddColumn(dataframe, column_name):
     dataframe[column_name] = pandas.Series()
     return dataframe
 
-def GetStateFromPoint(row, lat, lon):
+def GetStateFromPoint(row, lat, lon, states):
     point = Point(row[lon], row[lat])
     state = states.contains(point)
     state = state[state == True].first_valid_index()
     return state
 
-if __name__ == '__main__':
-    #Load states from shapefile so they are universally available
-    states = GeoDataFrame.from_file('shapefiles/s_16de14.shp')
+def main():
+
+    filenames = getFileNames()
+
+    print('Loading Shapefiles from ' + filenames['shapefile'])
+    #Open up the shapefile
+    states = GeoDataFrame.from_file(filenames['shapefile'])
+    #Set the 'Name' column as the index
     states.set_index('NAME', inplace=True)
+    print('Done!')
 
-    #load the file that has the points in it we want to find states for
-    filename = input("Please enter the location of the file you want to load: ")
-    user_file = LoadCSV(filename)
-    #List the columns in that file and have the user select which ones they want to use for Latitude/Longitude
-    PickColumns(user_file)
-    lat_col = int(input("Please enter the column number you want to use for Latitude: "))
-    lon_col = int(input("Please enter the column number you want to use for Longitude: "))
+    print('Loading data from ' + filenames['data'])
+    #Load the file the user wants to process
+    data = LoadCSV(filenames['data']) 
+    print('Done!')
 
-    user_file = AddColumn(user_file, "State")
-    print("Adding states to file...")
+    #list out the columns in the data file
+    PickColumns(data)
+    #ask the user which columns they want to use for lat/lon
+    lat_col = prompt.query('Please enter the column number for Latitude: ', 
+            default = '7', 
+            validators=[]
+    )
 
-    user_file['State'] = user_file.apply(lambda row: GetStateFromPoint(row, lat_col, lon_col), axis=1)
+    lon_col = prompt.query('Please enter the column number for Longitude: ',
+            default='8',
+            validators=[]
+    )
 
-    user_file.to_csv('processed.csv')
-    print("Done! Writing file to disk.")
+    #Wrap them in ints because they need to be referenced as numbers later on
+    lat_col = int(lat_col)
+    lon_col = int(lon_col)
+
+
+    #Add a State column to the data file
+    data = AddColumn(data, 'State')
+
+    #Process each row and add the state name to the new column
+    data['State'] = data.apply(
+        lambda row: GetStateFromPoint(row, lat_col, lon_col, states),
+        axis=1
+    )
+    print("Writing file to " + filenames['output'])
+    data.to_csv(filenames['output'])
+    print("Done!")
+
+if __name__ == '__main__':
+    main()
